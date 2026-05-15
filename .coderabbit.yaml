@@ -97,10 +97,10 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
-    # Each entry is a regex. Use anchors; unescaped "audit-base" can break (t-b range in regex).
+    # Match all PR base branches (required when org/UI still skips non-default targets).
+    # See: https://docs.coderabbit.ai/configuration/auto-review#base_branches
     base_branches:
-      - "^audit-base$"
-      - "^audit/"
+      - ".*"
     ignore_usernames:
       - "dependabot"
       - "dependabot[bot]"
