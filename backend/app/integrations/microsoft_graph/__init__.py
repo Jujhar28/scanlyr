@@ -1,1 +1,1 @@
-"""Microsoft Graph client helpers and OAuth utilities."""
+"""Microsoft Graph integration package."""

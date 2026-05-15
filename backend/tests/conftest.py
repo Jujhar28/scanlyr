@@ -1,48 +1,63 @@
-"""Pytest fixtures.
-
-Run from ``backend`` so ``.env`` loads and ``alembic`` finds ``alembic.ini``::
-
-    cd backend
-    .\\.venv\\Scripts\\activate
-    pytest tests -q
-
-Optional **dedicated test DB** (recommended): set ``TEST_DATABASE_URL`` *before*
-starting pytest so it replaces ``DATABASE_URL`` before the app module builds the
-SQLAlchemy engine::
-
-    set TEST_DATABASE_URL=postgresql://user:pass@127.0.0.1:5432/shadowtest
-    pytest tests -q
-
-Then run ``alembic upgrade head`` against that database once (or in CI before tests).
-"""
-
+"""Shared pytest fixtures for the backend test suite."""
 from __future__ import annotations
 
 import os
-from collections.abc import Generator
+import uuid
+from unittest.mock import MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
 
-# Apply test DB URL before importing the app (engine + Settings are created on import).
-if os.environ.get("TEST_DATABASE_URL"):
-    os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
+# ---------------------------------------------------------------------------
+# Set required environment variables BEFORE any app module is imported.
+# config.py has a module-level `settings = get_settings()` that fires at
+# collection time, so we need these in os.environ before that happens.
+# ---------------------------------------------------------------------------
 
-from app.main import app  # noqa: E402
+_REQUIRED_TEST_ENV = {
+    "SECRET_KEY": "test-secret-key-that-is-long-enough-for-tests",
+    "DATABASE_URL": "postgresql+psycopg://user:pass@localhost:5432/testdb",
+}
+for _k, _v in _REQUIRED_TEST_ENV.items():
+    os.environ.setdefault(_k, _v)
 
-
-@pytest.fixture(scope="session")
-def database_url() -> str:
-    """Effective database URL (from Settings — includes ``.env`` loaded at app import)."""
-    from app.core.config import settings
-
-    url = settings.database_url.strip()
-    if not url:
-        pytest.skip("database_url is empty; configure DATABASE_URL or TEST_DATABASE_URL.")
-    return url
+MINIMAL_ENV = _REQUIRED_TEST_ENV
 
 
-@pytest.fixture
-def client() -> Generator[TestClient, None, None]:
-    with TestClient(app) as c:
-        yield c
+@pytest.fixture(autouse=False)
+def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove any env vars that might bleed in from a real .env during tests."""
+    for key in list(os.environ):
+        if key.upper() in {
+            "SECRET_KEY",
+            "DATABASE_URL",
+            "APP_ENV",
+            "DEBUG",
+            "ENABLE_OPENAPI_DOCS",
+            "CORS_ORIGINS",
+            "BCRYPT_ROUNDS",
+        }:
+            monkeypatch.delenv(key, raising=False)
+
+
+@pytest.fixture()
+def minimal_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set the bare minimum env vars for a valid Settings instance."""
+    for k, v in MINIMAL_ENV.items():
+        monkeypatch.setenv(k, v)
+
+
+@pytest.fixture()
+def mock_db_session() -> MagicMock:
+    """A mock SQLAlchemy Session."""
+    session = MagicMock()
+    return session
+
+
+@pytest.fixture()
+def sample_user_id() -> uuid.UUID:
+    return uuid.UUID("12345678-1234-5678-1234-567812345678")
+
+
+@pytest.fixture()
+def sample_org_id() -> uuid.UUID:
+    return uuid.UUID("87654321-4321-8765-4321-876543218765")
