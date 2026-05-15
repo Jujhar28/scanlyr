@@ -97,9 +97,9 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
-    # Default branch is always reviewed; list other PR *targets* that should get auto-review.
+    # Each entry is a regex. Use anchors; unescaped "audit-base" can break (t-b range in regex).
     base_branches:
-      - "audit-base"
+      - "^audit-base$"
       - "^audit/"
     ignore_usernames:
       - "dependabot"
