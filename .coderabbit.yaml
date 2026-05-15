@@ -97,6 +97,10 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+    # Default branch is always reviewed; list other PR *targets* that should get auto-review.
+    base_branches:
+      - "audit-base"
+      - "^audit/"
     ignore_usernames:
       - "dependabot"
       - "dependabot[bot]"
