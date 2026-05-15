@@ -1,1 +1,1 @@
-"""Microsoft Graph integration package (OAuth + data ingestion)."""
+"""Integrations package."""

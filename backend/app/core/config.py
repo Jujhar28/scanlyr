@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     )
 
     @model_validator(mode="after")
-    def default_enable_openapi_docs(self) -> Settings:
+    def default_enable_openapi_docs(self) -> "Settings":
         if self.enable_openapi_docs is not None:
             return self
         env = self.app_env.strip().lower()
