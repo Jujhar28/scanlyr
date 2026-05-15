@@ -1,1 +1,0 @@
-"""Scanlyr API application package."""
