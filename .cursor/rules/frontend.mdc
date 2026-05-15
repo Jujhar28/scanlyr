@@ -1,0 +1,17 @@
+---
+description: Frontend engineering standards for the Next.js app (TypeScript, Tailwind, modular UI).
+globs:
+  - frontend/**
+---
+
+# Frontend Engineering Rules
+
+- Use reusable components
+- Use TypeScript everywhere
+- Use TailwindCSS only
+- Keep components modular
+- Use responsive layouts
+- Avoid large monolithic pages
+- Use clean enterprise SaaS styling
+- Use loading and error states
+- Use API abstraction layer

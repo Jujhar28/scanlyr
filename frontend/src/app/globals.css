@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --st-canvas: #f1f5f9;
+  --st-surface: #ffffff;
+  --st-sidebar: #ffffff;
+  --st-border: #e2e8f0;
+  --st-muted: #f1f5f9;
+  --st-fg: #0f172a;
+  --st-fg-muted: #64748b;
+  --st-accent: #2563eb;
+  --st-accent-ring: rgba(37, 99, 235, 0.25);
+  --st-accent-subtle: #eff6ff;
+}
+
+/* Enterprise console (CrowdStrike / Datadog–inspired dark shell) */
+[data-st-console] {
+  --background: #05080f;
+  --foreground: #e8eef7;
+  --st-canvas: #05080f;
+  --st-surface: #0c111c;
+  --st-sidebar: #080d14;
+  --st-border: rgba(148, 163, 184, 0.12);
+  --st-muted: #121a26;
+  --st-fg: #e8eef7;
+  --st-fg-muted: #8b9cb3;
+  --st-accent: #22d3ee;
+  --st-accent-ring: rgba(34, 211, 238, 0.35);
+  --st-accent-subtle: rgba(34, 211, 238, 0.1);
+  --st-grid: rgba(148, 163, 184, 0.04);
+  --st-glow: rgba(34, 211, 238, 0.12);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-st-console]) {
+    --background: #020617;
+    --foreground: #e2e8f0;
+    --st-canvas: #020617;
+    --st-surface: #0f172a;
+    --st-sidebar: #0b1220;
+    --st-border: #1e293b;
+    --st-muted: #1e293b;
+    --st-fg: #e2e8f0;
+    --st-fg-muted: #94a3b8;
+    --st-accent: #3b82f6;
+    --st-accent-ring: rgba(59, 130, 246, 0.35);
+    --st-accent-subtle: rgba(59, 130, 246, 0.12);
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+[data-st-console] .st-panel-grid {
+  background-image:
+    linear-gradient(var(--st-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--st-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
