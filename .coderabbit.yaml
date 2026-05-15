@@ -1,0 +1,165 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit — Scanlyr (FastAPI + Next.js + PostgreSQL / Alembic + Microsoft Graph)
+# Docs: https://docs.coderabbit.ai/reference/configuration
+
+language: "en-US"
+
+tone_instructions: >-
+  Scanlyr is a multi-tenant governance app: Python 3.12+ FastAPI backend (SQLAlchemy 2,
+  Alembic, JWT, Pydantic v2) and Next.js App Router frontend (TypeScript, Tailwind).
+  Prioritize: (1) security — tenant isolation, auth/JWT, secrets, OAuth/callbacks,
+  encryption pepper usage; (2) correctness — DB transactions, migration safety,
+  API/OpenAPI contracts; (3) reliability — idempotency, error envelopes, readiness.
+  Be concise and actionable; defer pure style to Ruff/ESLint unless it affects safety.
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  poem: false
+  in_progress_fortune: false
+
+  review_status: true
+  review_details: false
+  collapse_walkthrough: true
+
+  changed_files_summary: true
+  sequence_diagrams: true
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+
+  suggested_labels: true
+  suggested_reviewers: false
+
+  labeling_instructions:
+    - label: "backend"
+      instructions: "PR mainly touches backend/ (FastAPI, SQLAlchemy, Alembic, services, tests)."
+    - label: "frontend"
+      instructions: "PR mainly touches frontend/ (Next.js, React, client API, UI)."
+    - label: "security"
+      instructions: "PR touches auth, JWT, middleware, OAuth, token/crypto, CORS, or secrets."
+
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/.next/**"
+    - "!**/dist/**"
+    - "!backend/var/**"
+    - "!**/__pycache__/**"
+    - "!**/.pytest_cache/**"
+    - "!**/.venv/**"
+    - "!**/.mypy_cache/**"
+    - "!**/.ruff_cache/**"
+    - "!**/*.pdf"
+
+  path_instructions:
+    - path: "backend/app/**/*.py"
+      instructions: |
+        FastAPI / Starlette stack. Check: dependency injection vs global state; async vs sync
+        DB usage; Pydantic models match API behavior; SQLAlchemy session lifecycle and N+1
+        queries; leaks of org_id across tenants; safe error messages (no stack traces to clients).
+        Respect @public_api_route / auth middleware alignment for public routes.
+    - path: "backend/app/core/**/*.py"
+      instructions: |
+        Core config, security, errors — treat as high-risk. Flag weak crypto, logging of secrets,
+        permissive CORS, and inconsistent HTTP error shapes.
+    - path: "backend/app/middleware/**/*.py"
+      instructions: |
+        Middleware order and side effects on request.state; 401/403 behavior; path matching
+        vs router definitions.
+    - path: "backend/app/integrations/**/*.py"
+      instructions: |
+        Microsoft Graph / OAuth — verify state/nonce, redirect URL safety, token storage,
+        and clear errors without leaking tokens.
+    - path: "backend/alembic/versions/**/*.py"
+      instructions: |
+        Migrations: reversible where reasonable; nullable vs NOT NULL for rollouts;
+        revision chain integrity; avoid destructive data loss without explicit downgrade path.
+    - path: "backend/tests/**/*.py"
+      instructions: |
+        pytest — meaningful assertions; fixtures avoid hitting production URLs; integration
+        tests document DB/env requirements.
+    - path: "frontend/src/**/*.tsx"
+      instructions: |
+        React 19 / Next.js — hooks rules, server vs client boundaries ("use client"), auth
+        token handling in browser, XSS when rendering user content, loading/error UX.
+    - path: "frontend/src/lib/api/**/*.ts"
+      instructions: |
+        API client — typing of responses, error handling, base URL from env, no hardcoded secrets.
+    - path: "backend/docker-compose.yml"
+      instructions: |
+        Compose — credentials are dev-only; production risks called out; healthchecks and
+        service dependencies are coherent.
+
+  auto_review:
+    enabled: true
+    drafts: false
+    # Each entry is a regex. Use anchors; unescaped "audit-base" can break (t-b range in regex).
+    base_branches:
+      - "^audit-base$"
+      - "^audit/"
+    ignore_usernames:
+      - "dependabot"
+      - "dependabot[bot]"
+      - "renovate"
+      - "renovate[bot]"
+
+  finishing_touches:
+    docstrings:
+      enabled: true
+    unit_tests:
+      enabled: true
+    simplify:
+      enabled: false
+
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    title:
+      mode: "warning"
+    description:
+      mode: "warning"
+
+  tools:
+    ruff:
+      enabled: true
+    eslint:
+      enabled: true
+    hadolint:
+      enabled: true
+    yamllint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    actionlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    trufflehog:
+      enabled: true
+    semgrep:
+      enabled: true
+    opengrep:
+      enabled: true
+    github-checks:
+      enabled: true
+      timeout_ms: 120000
+    # Repo uses Ruff + ESLint; avoid duplicate / irrelevant linters
+    biome:
+      enabled: false
+    flake8:
+      enabled: false
+    pylint:
+      enabled: false
+    languagetool:
+      enabled: false
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  learnings:
+    scope: "local"
