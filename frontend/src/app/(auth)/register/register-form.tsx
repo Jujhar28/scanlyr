@@ -44,9 +44,9 @@ export function RegisterForm() {
   }
 
   return (
-    <Card>
+    <Card className="border-[var(--st-border)] bg-[var(--st-surface)]/90 shadow-2xl shadow-black/40 ring-1 ring-white/5 backdrop-blur-xl">
       <CardHeader>
-        <CardTitle>Create organization</CardTitle>
+        <CardTitle className="font-display">Create organization</CardTitle>
         <CardDescription>
           Creates your tenant, default roles, and an administrator membership for your user.
         </CardDescription>

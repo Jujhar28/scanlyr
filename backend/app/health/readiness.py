@@ -117,6 +117,29 @@ def _check_report_storage() -> ReadinessCheck:
         )
 
 
+def _check_app_config() -> ReadinessCheck:
+    env = settings.app_env.strip().lower()
+    details: dict[str, Any] = {
+        "app_env": env,
+        "rate_limit_enabled": settings.rate_limit_enabled,
+        "max_request_body_bytes": settings.max_request_body_bytes,
+        "trust_proxy_headers": settings.trust_proxy_headers,
+    }
+    if settings.is_production and settings.debug:
+        return ReadinessCheck(
+            status="fail",
+            message="DEBUG must be false in production.",
+            details=details,
+        )
+    if settings.is_production and not settings.cors_origin_list:
+        return ReadinessCheck(
+            status="warn",
+            message="CORS_ORIGINS is empty in production; browser clients may fail.",
+            details=details,
+        )
+    return ReadinessCheck(status="pass", message="Application configuration OK.", details=details)
+
+
 def _check_security() -> ReadinessCheck:
     key = settings.secret_key or ""
     if len(key) < 32:
@@ -158,6 +181,7 @@ def assess_readiness(engine: Engine) -> tuple[ReadinessResponse, int]:
         details=None,
     )
     checks["security"] = _check_security()
+    checks["app_config"] = _check_app_config()
 
     critical_ok = (
         checks["database"].status == "pass"

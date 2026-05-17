@@ -1,5 +1,6 @@
 import { RequireAuth } from "@/components/auth/require-auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { ToastProvider } from "@/providers/toast-provider";
 
 export default function DashboardLayout({
   children,
@@ -7,8 +8,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <DashboardShell>
-      <RequireAuth>{children}</RequireAuth>
-    </DashboardShell>
+    <ToastProvider>
+      <DashboardShell>
+        <RequireAuth>{children}</RequireAuth>
+      </DashboardShell>
+    </ToastProvider>
   );
 }

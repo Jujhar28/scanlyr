@@ -7,18 +7,9 @@ import { EventTrendChart, SeverityDonut, ToolBarChart } from "@/components/dashb
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiFetch, ApiError } from "@/lib/api/client";
+import { fetchAllDetections, type DetectionItem } from "@/lib/api/detections";
+import { ApiError } from "@/lib/api/client";
 import { useAuth } from "@/providers/auth-provider";
-
-type DetectionItem = {
-  id: string;
-  occurred_at: string;
-  tool_name: string | null;
-  severity: string;
-  risk_scores: { score_kind: string; score: string }[];
-};
-
-type ListResponse = { items: DetectionItem[]; total: number };
 
 function scoreOf(row: DetectionItem): number | null {
   const r = row.risk_scores.find((s) => s.score_kind === "detection");
@@ -31,14 +22,19 @@ export default function RiskAnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<DetectionItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [info, setInfo] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setInfo(null);
     try {
-      const res = await apiFetch<ListResponse>("detections?limit=400&offset=0");
+      const res = await fetchAllDetections({ maxItems: 500 });
       setItems(res.items);
       setTotal(res.total);
+      if (res.truncated) {
+        setInfo(`Charts use the first ${res.items.length} of ${res.total} detection events.`);
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load analytics.");
     } finally {
@@ -105,6 +101,12 @@ export default function RiskAnalyticsPage() {
       {error ? (
         <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
           {error}
+        </div>
+      ) : null}
+
+      {info && !error ? (
+        <div role="status" className="rounded-lg border border-[var(--st-border)] bg-[var(--st-muted)]/60 px-4 py-3 text-sm text-[var(--st-fg-muted)]">
+          {info}
         </div>
       ) : null}
 

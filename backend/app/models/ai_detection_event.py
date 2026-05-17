@@ -36,6 +36,10 @@ class AIDetectionEvent(Base, TenantMixin, TimestampMixin):
         ForeignKey("scan_sessions.id", ondelete="SET NULL"),
         nullable=True,
     )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -58,6 +62,7 @@ class AIDetectionEvent(Base, TenantMixin, TimestampMixin):
 
     organization = relationship("Organization", back_populates="detection_events")
     scan_session = relationship("ScanSession", back_populates="detection_events")
+    user = relationship("User", back_populates="detection_events", foreign_keys=[user_id])
     risk_scores = relationship(
         "RiskScore",
         back_populates="detection_event",

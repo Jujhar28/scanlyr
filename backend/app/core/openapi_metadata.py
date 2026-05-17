@@ -14,6 +14,10 @@ OPENAPI_TAGS: list[dict[str, str]] = [
         "description": "AI detection runs, events, and scan pipelines.",
     },
     {
+        "name": "scan",
+        "description": "AI security scans, history, org analytics (trends, top threats), and explainable risk scoring.",
+    },
+    {
         "name": "reports",
         "description": "Compliance PDF reports: generate, list, download.",
     },

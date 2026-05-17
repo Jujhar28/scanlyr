@@ -1,11 +1,13 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  History,
   LayoutDashboard,
   Radar,
+  ScanSearch,
   FileText,
-  Settings2,
   Plug,
   LineChart,
+  User,
 } from "lucide-react";
 
 export type NavItem = {
@@ -16,10 +18,12 @@ export type NavItem = {
 
 /** Primary sidebar destinations under `/dashboard`. */
 export const dashboardNav: NavItem[] = [
-  { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Command center", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Security scan", href: "/dashboard/scan", icon: ScanSearch },
+  { label: "History", href: "/dashboard/history", icon: History },
   { label: "AI events", href: "/dashboard/detections", icon: Radar },
-  { label: "Risk & analytics", href: "/dashboard/risk", icon: LineChart },
+  { label: "Risk analytics", href: "/dashboard/risk", icon: LineChart },
   { label: "Reports", href: "/dashboard/reports", icon: FileText },
   { label: "Integrations", href: "/dashboard/integrations", icon: Plug },
-  { label: "Organization", href: "/dashboard/settings", icon: Settings2 },
+  { label: "Profile", href: "/dashboard/settings", icon: User },
 ];

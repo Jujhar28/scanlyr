@@ -9,23 +9,37 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
+from app.core.logging_config import configure_logging
 from app.core.openapi_metadata import API_DESCRIPTION, API_VERSION, OPENAPI_TAGS
 from app.core.public_api import collect_public_api_route_keys
 from app.db.bootstrap import run_migrations_subprocess
 from app.db.engine import engine
 from app.db.health import ping_database
 from app.health.readiness import assess_readiness
-from app.schemas.health import HealthResponse, ReadinessResponse
+from app.middleware.access_log import AccessLogMiddleware
 from app.middleware.api_auth import APIAuthMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.request_id import RequestIDMiddleware
+from app.middleware.request_limits import RequestSizeLimitMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.schemas.health import HealthResponse, ReadinessResponse
 from app.routers.v1.api import api_router
 
+configure_logging(level=settings.log_level, json_logs=settings.effective_log_json)
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    logger.info(
+        "application_starting",
+        extra={
+            "app_env": settings.app_env,
+            "rate_limit_enabled": settings.rate_limit_enabled,
+            "max_request_body_bytes": settings.max_request_body_bytes,
+        },
+    )
+
     if settings.run_db_migrations_on_startup:
         await asyncio.to_thread(run_migrations_subprocess)
 
@@ -41,6 +55,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
 
     engine.dispose()
+    logger.info("application_shutdown")
 
 
 def create_application() -> FastAPI:
@@ -93,9 +108,7 @@ def create_application() -> FastAPI:
             "check @public_api_route on public /api/v1 handlers.",
         )
 
-    application.add_middleware(SecurityHeadersMiddleware)
-    application.add_middleware(APIAuthMiddleware, public_route_keys=public_route_keys)
-    application.add_middleware(RequestIDMiddleware)
+    # Outermost middleware runs first on incoming requests (last registered).
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
@@ -103,6 +116,12 @@ def create_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    application.add_middleware(SecurityHeadersMiddleware)
+    application.add_middleware(APIAuthMiddleware, public_route_keys=public_route_keys)
+    application.add_middleware(AccessLogMiddleware)
+    application.add_middleware(RequestIDMiddleware)
+    application.add_middleware(RateLimitMiddleware)
+    application.add_middleware(RequestSizeLimitMiddleware)
 
     return application
 

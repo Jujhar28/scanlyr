@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Filter, RefreshCw } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -10,47 +11,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiFetch, ApiError } from "@/lib/api/client";
+import {
+  fetchAllDetections,
+  runDetectionScan,
+  type DetectionItem,
+} from "@/lib/api/detections";
+import { ApiError } from "@/lib/api/client";
+import { consumeFullScanSuccess } from "@/lib/full-scan/session";
 import { cn } from "@/lib/utils/cn";
+import { useToast } from "@/providers/toast-provider";
 import { useAuth } from "@/providers/auth-provider";
 
-type RiskScore = {
-  id: string;
-  score_kind: string;
-  score: string;
-};
-
-type DetectionItem = {
-  id: string;
-  scan_session_id: string | null;
-  occurred_at: string;
-  source: string;
-  tool_name: string | null;
-  tool_vendor: string | null;
-  channel: string | null;
-  severity: string;
-  confidence: number | null;
-  external_ref: string | null;
-  risk_scores: RiskScore[];
-};
-
-type ListResponse = {
-  items: DetectionItem[];
-  total: number;
-  limit: number;
-  offset: number;
-};
-
-type RunResponse = {
-  scan_session_id: string;
-  events_normalized: number;
-  candidates: number;
-  inserted: number;
-  skipped_duplicates: number;
-};
-
 const PAGE_SIZE = 25;
-const FETCH_LIMIT = 400;
+/** Up to 5 API pages × 100 (backend max per request). */
+const MAX_LOADED = 500;
 
 const SEVERITIES = ["all", "critical", "high", "medium", "low", "info"] as const;
 
@@ -60,10 +34,13 @@ function primaryScore(row: DetectionItem): string {
 }
 
 export default function DetectionsPage() {
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
   const { role, hydrated } = useAuth();
   const isAdmin = role === "admin";
   const [raw, setRaw] = useState<DetectionItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -75,11 +52,19 @@ export default function DetectionsPage() {
     setLoading(true);
     setNotice(null);
     try {
-      const res = await apiFetch<ListResponse>(`detections?limit=${FETCH_LIMIT}&offset=0`);
+      const res = await fetchAllDetections({ maxItems: MAX_LOADED });
       setRaw(res.items);
       setTotal(res.total);
+      setTruncated(res.truncated);
+      if (res.truncated) {
+        setNotice(
+          `Showing first ${res.items.length} of ${res.total} events. Use reports or run detection again for the latest data.`,
+        );
+      }
     } catch (e) {
       setRaw([]);
+      setTotal(0);
+      setTruncated(false);
       setNotice(e instanceof ApiError ? e.message : "Failed to load detections.");
     } finally {
       setLoading(false);
@@ -90,6 +75,24 @@ export default function DetectionsPage() {
     if (!hydrated) return;
     void load();
   }, [hydrated, load]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const fromRedirect = searchParams.get("full_scan") === "1";
+    const stored = consumeFullScanSuccess();
+    if (!fromRedirect && !stored) return;
+
+    const inserted = stored?.inserted ?? 0;
+    toast({
+      variant: "success",
+      title: "Full scan complete",
+      description: stored
+        ? inserted > 0
+          ? `${inserted} new AI event${inserted === 1 ? "" : "s"} from Microsoft 365. Report: ${stored.reportTitle}.`
+          : "No new AI events matched rules. Your tenant was scanned successfully."
+        : "Review the latest AI events below.",
+    });
+  }, [hydrated, searchParams, toast]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -113,7 +116,7 @@ export default function DetectionsPage() {
     setBusy(true);
     setNotice(null);
     try {
-      const summary = await apiFetch<RunResponse>("detections/run?top=120", { method: "POST" });
+      const summary = await runDetectionScan(120);
       await load();
       setNotice(
         `Last run: ${summary.inserted} new, ${summary.skipped_duplicates} skipped, ${summary.candidates} candidates.`,
@@ -191,7 +194,7 @@ export default function DetectionsPage() {
             <span>
               Showing <span className="font-medium text-[var(--st-fg)]">{filtered.length}</span> of{" "}
               <span className="font-medium text-[var(--st-fg)]">{raw.length}</span> loaded
-              {total > raw.length ? ` (${total} total in org)` : null}
+              {truncated || total > raw.length ? ` (${total} total in org)` : null}
             </span>
           </div>
         </div>

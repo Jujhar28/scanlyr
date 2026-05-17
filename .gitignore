@@ -34,3 +34,6 @@ alembic/__pycache__/
 # Coverage
 .coverage
 htmlcov/
+
+# Generated runtime artifacts
+backend/var/

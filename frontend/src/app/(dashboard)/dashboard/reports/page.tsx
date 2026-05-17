@@ -1,170 +1,138 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { FileText, Plus } from "lucide-react";
+import { motion } from "framer-motion";
+import { RefreshCw } from "lucide-react";
 
-import { PageHeader } from "@/components/dashboard/page-header";
+import { GenerateReportPanel, ReportsList } from "@/components/reports";
+import { PageHero } from "@/components/intel";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { useReportGeneration } from "@/hooks/use-report-generation";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { listReports, type ReportListResponse } from "@/lib/api/reports";
+import { useToast } from "@/providers/toast-provider";
 import { useAuth } from "@/providers/auth-provider";
 
-type ReportSummary = {
-  id: string;
-  title: string;
-  status: string;
-  period_start: string | null;
-  period_end: string | null;
-  created_at: string;
-  downloadable: boolean;
-};
-
-type ListResponse = {
-  items: ReportSummary[];
-  total: number;
-};
-
-type GenerateResponse = { id: string; title: string; status: string };
-
 export default function ReportsPage() {
+  const { toast } = useToast();
   const { role, hydrated } = useAuth();
   const isAdmin = role === "admin";
-  const [data, setData] = useState<ListResponse | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  const [data, setData] = useState<ReportListResponse | null>(null);
+  const [detectionsTotal, setDetectionsTotal] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [detectionsLoading, setDetectionsLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+
+  const generation = useReportGeneration();
+
+  const loadReports = useCallback(async () => {
     setLoading(true);
-    setNotice(null);
+    setListError(null);
     try {
-      const res = await apiFetch<ListResponse>("reports?limit=50&offset=0");
+      const res = await listReports(50, 0);
       setData(res);
     } catch (e) {
       setData(null);
-      setNotice(e instanceof ApiError ? e.message : "Failed to load reports.");
+      setListError(e instanceof ApiError ? e.message : "Failed to load reports.");
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const loadDetectionsCount = useCallback(async () => {
+    setDetectionsLoading(true);
+    try {
+      const res = await apiFetch<{ total: number }>("detections?limit=1&offset=0");
+      setDetectionsTotal(res.total);
+    } catch {
+      setDetectionsTotal(null);
+    } finally {
+      setDetectionsLoading(false);
+    }
+  }, []);
+
+  const reload = useCallback(async () => {
+    await Promise.all([loadReports(), loadDetectionsCount()]);
+  }, [loadReports, loadDetectionsCount]);
+
   useEffect(() => {
     if (!hydrated) return;
-    void load();
-  }, [hydrated, load]);
+    void reload();
+  }, [hydrated, reload]);
 
-  async function generateReport() {
-    setBusy(true);
-    setNotice(null);
+  async function handleGenerate() {
     try {
-      await apiFetch<GenerateResponse>("reports/generate", { method: "POST", json: {} });
-      await load();
-      setNotice("Report generated successfully.");
+      const report = await generation.run({ autoDownload: true });
+      await loadReports();
+      toast({
+        variant: "success",
+        title: "Report generated",
+        description:
+          report.status === "ready"
+            ? `${report.title} is ready and downloading.`
+            : `${report.title} was created with status: ${report.status}.`,
+      });
     } catch (e) {
-      setNotice(e instanceof ApiError ? e.message : "Generation failed.");
-    } finally {
-      setBusy(false);
+      toast({
+        variant: "error",
+        title: "Report generation failed",
+        description: e instanceof ApiError ? e.message : "Could not generate the compliance PDF.",
+      });
     }
   }
 
-  if (!hydrated) {
-    return null;
-  }
+  if (!hydrated) return null;
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-6">
-      <PageHeader
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="mx-auto max-w-[1680px] space-y-6 pb-10"
+    >
+      <PageHero
+        eyebrow="Compliance"
         title="Reports"
-        description="AI governance PDFs with usage, risk, PII, and ADM summaries — retained for audit history."
+        description="Generate governance PDFs with usage, risk, and recommendations — retained for audit."
         actions={
-          isAdmin ? (
-            <Button type="button" variant="secondary" className="h-9 gap-2 px-3" onClick={() => void generateReport()} disabled={busy}>
-              <Plus className="h-4 w-4" aria-hidden />
-              {busy ? "Generating…" : "New report"}
-            </Button>
-          ) : null
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 gap-2 px-3"
+            disabled={loading || generation.isRunning}
+            onClick={() => void reload()}
+          >
+            <RefreshCw
+              className={loading || generation.isRunning ? "h-4 w-4 animate-spin" : "h-4 w-4"}
+              aria-hidden
+            />
+            Refresh
+          </Button>
         }
       />
 
-      {notice ? (
+      {listError ? (
         <div
-          role="status"
-          className="rounded-lg border border-[var(--st-border)] bg-[var(--st-muted)]/60 px-4 py-3 text-sm text-[var(--st-fg)]"
+          role="alert"
+          className="rounded-xl border border-rose-500/30 bg-rose-50 px-4 py-3 text-sm text-rose-800"
         >
-          {notice}
+          {listError}
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border border-[var(--st-border)] bg-[var(--st-surface)] shadow-sm">
-        <div className="flex items-center justify-between border-b border-[var(--st-border)] px-5 py-4">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-cyan-400/80" aria-hidden />
-            <h2 className="text-sm font-semibold text-[var(--st-fg)]">History</h2>
-            {data ? (
-              <span className="text-xs text-[var(--st-fg-muted)]">({data.total})</span>
-            ) : null}
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-[var(--st-border)] bg-[var(--st-muted)]/50 text-xs uppercase tracking-wider text-[var(--st-fg-muted)]">
-              <tr>
-                <th className="px-5 py-3 font-medium">Title</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 font-medium">Period</th>
-                <th className="px-5 py-3 font-medium">Created</th>
-                <th className="px-5 py-3 font-medium text-right"> </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--st-border)]">
-              {loading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i}>
-                    <td className="px-5 py-3" colSpan={5}>
-                      <Skeleton className="h-9 w-full" />
-                    </td>
-                  </tr>
-                ))
-              ) : !data || data.items.length === 0 ? (
-                <tr>
-                  <td className="px-5 py-14 text-center text-[var(--st-fg-muted)]" colSpan={5}>
-                    No reports yet. Generate a compliance pack as an administrator.
-                  </td>
-                </tr>
-              ) : (
-                data.items.map((row) => (
-                  <tr key={row.id} className="hover:bg-[var(--st-muted)]/40">
-                    <td className="px-5 py-3 font-medium text-[var(--st-fg)]">{row.title}</td>
-                    <td className="px-5 py-3">
-                      <Badge variant={row.status === "ready" ? "success" : row.status === "failed" ? "danger" : "outline"}>
-                        {row.status}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-3 text-[var(--st-fg-muted)]">
-                      {row.period_start && row.period_end
-                        ? `${new Date(row.period_start).toLocaleDateString()} – ${new Date(row.period_end).toLocaleDateString()}`
-                        : "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3 text-[var(--st-fg-muted)]">
-                      {new Date(row.created_at).toLocaleString()}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <Link
-                        href={`/dashboard/reports/${row.id}`}
-                        className="text-xs font-semibold text-[var(--st-accent)] hover:underline"
-                      >
-                        Open
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+      <GenerateReportPanel
+        isAdmin={isAdmin}
+        detectionsTotal={detectionsTotal}
+        detectionsLoading={detectionsLoading}
+        phase={generation.phase}
+        progress={generation.progress}
+        error={generation.error}
+        isRunning={generation.isRunning}
+        onGenerate={handleGenerate}
+      />
+
+      <ReportsList items={data?.items ?? []} total={data?.total ?? 0} loading={loading} />
+    </motion.div>
   );
 }

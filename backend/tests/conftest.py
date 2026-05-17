@@ -42,6 +42,15 @@ def database_url() -> str:
     return url
 
 
+@pytest.fixture(autouse=True)
+def scan_integration_rules_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep POST /scan integration tests deterministic (no live Gemini/Groq calls)."""
+    monkeypatch.setattr(
+        "app.services.scan_text_service.try_ai_scan_analysis",
+        lambda *_args, **_kwargs: None,
+    )
+
+
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     with TestClient(app) as c:

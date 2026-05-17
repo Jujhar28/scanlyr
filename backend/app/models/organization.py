@@ -51,6 +51,11 @@ class Organization(Base, TimestampMixin):
         back_populates="organization",
         cascade="all, delete-orphan",
     )
+    security_text_scans = relationship(
+        "SecurityTextScan",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
     risk_scores = relationship(
         "RiskScore",
         back_populates="organization",

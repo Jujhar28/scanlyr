@@ -66,6 +66,16 @@ class User(Base):
         back_populates="started_by",
         foreign_keys="ScanSession.started_by_user_id",
     )
+    detection_events = relationship(
+        "AIDetectionEvent",
+        back_populates="user",
+        foreign_keys="AIDetectionEvent.user_id",
+    )
+    security_text_scans = relationship(
+        "SecurityTextScan",
+        back_populates="user",
+        foreign_keys="SecurityTextScan.user_id",
+    )
     reports_created = relationship(
         "Report",
         back_populates="created_by",

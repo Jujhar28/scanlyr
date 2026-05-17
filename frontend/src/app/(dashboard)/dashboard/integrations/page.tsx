@@ -1,19 +1,18 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { useRouter, useSearchParams } from "next/navigation";
 
+import { MicrosoftFullScanCard } from "@/components/integrations/microsoft-full-scan-card";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { PageHeader } from "@/components/dashboard/page-header";
+import { IntelCard, PageHero } from "@/components/intel";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMicrosoftFullScan } from "@/hooks/use-microsoft-full-scan";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { storeFullScanSuccess } from "@/lib/full-scan/session";
+import { useToast } from "@/providers/toast-provider";
 import { useAuth } from "@/providers/auth-provider";
 
 type MicrosoftGraphStatus = {
@@ -38,6 +37,8 @@ type ConnectResponse = {
 };
 
 function IntegrationsPageInner() {
+  const router = useRouter();
+  const { toast } = useToast();
   const { role, hydrated } = useAuth();
   const searchParams = useSearchParams();
   const isAdmin = role === "admin";
@@ -47,12 +48,18 @@ function IntegrationsPageInner() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const fullScan = useMicrosoftFullScan();
+  const autoScanStarted = useRef(false);
+
   const oauthBanner = useMemo(() => {
     const connected = searchParams.get("msft_connected");
     const err = searchParams.get("msft_error");
     const desc = searchParams.get("msft_error_description");
     if (connected === "1") {
-      return { kind: "success" as const, text: "Microsoft 365 connected successfully." };
+      return {
+        kind: "success" as const,
+        text: "Microsoft 365 connected. Starting your first full scan…",
+      };
     }
     if (err) {
       return {
@@ -62,6 +69,8 @@ function IntegrationsPageInner() {
     }
     return null;
   }, [searchParams]);
+
+  const isConnected = status?.status === "connected";
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -76,10 +85,60 @@ function IntegrationsPageInner() {
     }
   }, []);
 
+  const finishFullScan = useCallback(
+    async (redirect: boolean) => {
+      try {
+        const pipeline = await fullScan.run();
+        storeFullScanSuccess(pipeline);
+        await loadStatus();
+        if (redirect) {
+          router.push("/dashboard/detections?full_scan=1");
+        } else {
+          const inserted = pipeline.detection_events_inserted;
+          toast({
+            variant: "success",
+            title: "Full scan complete",
+            description:
+              inserted > 0
+                ? `${inserted} new AI event${inserted === 1 ? "" : "s"} recorded. Compliance report ready.`
+                : "Scan finished. No new AI events matched rules this run.",
+          });
+        }
+      } catch (e) {
+        toast({
+          variant: "error",
+          title: "Full scan failed",
+          description: e instanceof ApiError ? e.message : "Could not complete the scan pipeline.",
+        });
+      }
+    },
+    [fullScan.run, loadStatus, router, toast],
+  );
+
   useEffect(() => {
     if (!hydrated) return;
     void loadStatus();
   }, [hydrated, loadStatus]);
+
+  useEffect(() => {
+    if (!hydrated || !isAdmin || loading || fullScan.isRunning) return;
+    if (searchParams.get("msft_connected") !== "1") return;
+    if (!isConnected) return;
+    if (autoScanStarted.current) return;
+
+    autoScanStarted.current = true;
+    router.replace("/dashboard/integrations");
+    void finishFullScan(true);
+  }, [
+    hydrated,
+    isAdmin,
+    loading,
+    isConnected,
+    searchParams,
+    router,
+    finishFullScan,
+    fullScan.isRunning,
+  ]);
 
   async function connectMicrosoft() {
     setBusy(true);
@@ -113,6 +172,7 @@ function IntegrationsPageInner() {
     setActionError(null);
     try {
       await apiFetch("integrations/microsoft/disconnect", { method: "DELETE" });
+      fullScan.reset();
       await loadStatus();
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : "Disconnect failed.");
@@ -127,11 +187,12 @@ function IntegrationsPageInner() {
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-6">
-      <PageHeader
+      <PageHero
+        eyebrow="Enterprise"
         title="Integrations"
-        description="Connect Microsoft 365 to collect audit, sign-in, and enterprise app signals for governance and detection pipelines."
+        description="Connect Microsoft 365, run full tenant detection, and sync shadow-AI telemetry."
         actions={
-          loading ? undefined : status?.status === "connected" ? (
+          loading ? undefined : isConnected ? (
             <Badge variant="success" className="normal-case">
               Connected
             </Badge>
@@ -152,8 +213,8 @@ function IntegrationsPageInner() {
           role="status"
           className={
             oauthBanner.kind === "success"
-              ? "rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
-              : "rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100"
+              ? "rounded-xl border border-emerald-500/30 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+              : "rounded-xl border border-rose-500/30 bg-rose-50 px-4 py-3 text-sm text-rose-800"
           }
         >
           {oauthBanner.text}
@@ -163,21 +224,26 @@ function IntegrationsPageInner() {
       {actionError ? (
         <div
           role="alert"
-          className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100"
+          className="rounded-xl border border-rose-500/30 bg-rose-50 px-4 py-3 text-sm text-rose-800"
         >
           {actionError}
         </div>
       ) : null}
 
-      <Card className="overflow-hidden border-[var(--st-border)] bg-[var(--st-surface)] shadow-sm">
-        <CardHeader className="border-b border-[var(--st-border)] bg-[var(--st-muted)]/30">
-          <CardTitle>Microsoft 365</CardTitle>
-          <CardDescription>
-            OAuth is tenant-scoped; tokens are encrypted at rest. Ingestion powers AI detection and compliance
-            reporting.
-          </CardDescription>
-        </CardHeader>
-        <div className="space-y-4 p-6">
+      {!loading && isConnected ? (
+        <MicrosoftFullScanCard
+          connected={isConnected}
+          isAdmin={isAdmin}
+          phase={fullScan.phase}
+          progress={fullScan.progress}
+          error={fullScan.error}
+          isRunning={fullScan.isRunning}
+          onRun={() => finishFullScan(true)}
+        />
+      ) : null}
+
+      <IntelCard title="Microsoft 365" description="OAuth · sync status · connection controls" accent="indigo">
+        <motion.div className="space-y-4">
           {loading ? (
             <div className="grid gap-4 sm:grid-cols-2">
               {[1, 2, 3, 4].map((i) => (
@@ -229,22 +295,22 @@ function IntegrationsPageInner() {
 
           {isAdmin ? (
             <div className="flex flex-wrap gap-2 pt-2">
-              <Button type="button" onClick={() => void connectMicrosoft()} disabled={busy || loading}>
+              <Button type="button" onClick={() => void connectMicrosoft()} disabled={busy || loading || fullScan.isRunning}>
                 Connect Microsoft 365
               </Button>
               <Button
                 type="button"
                 variant="secondary"
                 onClick={() => void syncNow()}
-                disabled={busy || loading || status?.status !== "connected"}
+                disabled={busy || loading || !isConnected || fullScan.isRunning}
               >
-                Run sync now
+                Sync telemetry only
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => void disconnect()}
-                disabled={busy || loading || status?.status === "disconnected"}
+                disabled={busy || loading || status?.status === "disconnected" || fullScan.isRunning}
               >
                 Disconnect
               </Button>
@@ -254,8 +320,8 @@ function IntegrationsPageInner() {
               Only organization administrators can connect or modify this integration.
             </p>
           )}
-        </div>
-      </Card>
+        </motion.div>
+      </IntelCard>
     </div>
   );
 }

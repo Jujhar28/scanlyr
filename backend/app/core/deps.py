@@ -25,23 +25,23 @@ def get_bearer_token(
     return credentials.credentials
 
 
+def _unauthorized(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
 def get_token_payload(
     token: Annotated[str | None, Depends(get_bearer_token)],
 ) -> dict[str, Any]:
     """Require a valid access JWT; raises 401 if missing or invalid."""
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    if not token or not token.strip():
+        raise _unauthorized("Authentication required")
     payload = safe_decode_access_token(token)
     if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("Invalid or expired token")
     return payload
 
 

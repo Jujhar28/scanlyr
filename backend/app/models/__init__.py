@@ -12,6 +12,7 @@ from app.models.report import Report
 from app.models.risk_score import RiskScore
 from app.models.role import Role
 from app.models.scan_session import ScanSession
+from app.models.security_text_scan import SecurityTextScan
 from app.models.user import User
 
 __all__ = [

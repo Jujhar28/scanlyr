@@ -5,15 +5,15 @@ import type { LinkProps } from "next/link";
 import { cn } from "@/lib/utils/cn";
 
 const baseClass =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--st-accent)]";
+  "inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--st-accent)] active:scale-[0.98]";
 
 const variants = {
   primary:
-    "bg-[var(--st-accent)] text-white hover:opacity-90 disabled:opacity-50 shadow-sm",
+    "bg-gradient-to-r from-[var(--st-accent)] to-[#0096b8] text-white shadow-md shadow-cyan-500/20 hover:shadow-lg hover:shadow-cyan-500/25 disabled:opacity-50",
   secondary:
-    "border border-[var(--st-border)] bg-[var(--st-surface)] text-[var(--st-fg)] hover:bg-[var(--st-muted)] disabled:opacity-50",
+    "border border-[var(--st-border-strong)] bg-[var(--st-surface)] text-[var(--st-fg)] shadow-sm hover:border-[var(--st-accent)]/30 hover:bg-[var(--st-muted)] disabled:opacity-50",
   ghost:
-    "text-[var(--st-fg-muted)] hover:bg-[var(--st-muted)] disabled:opacity-50",
+    "text-[var(--st-fg-muted)] hover:bg-[var(--st-muted)] hover:text-[var(--st-fg)] disabled:opacity-50",
 } as const;
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {

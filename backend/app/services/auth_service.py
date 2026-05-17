@@ -31,6 +31,7 @@ from app.schemas.auth import (
     TokenPairResponse,
     UserSummary,
 )
+from app.services.security_audit_service import record_security_audit
 from app.utils.slug import slugify
 
 
@@ -172,6 +173,16 @@ def register(
         ip_address=ip_address,
     )
 
+    record_security_audit(
+        session,
+        action="auth.register",
+        organization_id=organization.id,
+        actor_user_id=user.id,
+        resource_type="user",
+        resource_id=str(user.id),
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
     session.commit()
     session.refresh(user)
     session.refresh(organization)
@@ -272,6 +283,16 @@ def login(
         ip_address=ip_address,
     )
 
+    record_security_audit(
+        session,
+        action="auth.login",
+        organization_id=organization.id,
+        actor_user_id=user.id,
+        resource_type="session",
+        resource_id=str(user.id),
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
     session.commit()
     session.refresh(user)
     session.refresh(organization)
@@ -294,6 +315,14 @@ def login(
     )
 
 
+def _revoke_all_refresh_tokens(session: Session, user_id: uuid.UUID, *, now: datetime) -> None:
+    session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
+
+
 def refresh_session(
     session: Session,
     payload: RefreshRequest,
@@ -309,7 +338,24 @@ def refresh_session(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
     now = datetime.now(tz=UTC)
-    if row.revoked_at is not None or row.expires_at <= now:
+    if row.revoked_at is not None:
+        _revoke_all_refresh_tokens(session, row.user_id, now=now)
+        record_security_audit(
+            session,
+            action="auth.refresh_token_reuse",
+            actor_user_id=row.user_id,
+            resource_type="session",
+            resource_id=str(row.id),
+            payload={"reason": "revoked_token_reused"},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token reuse detected; all sessions revoked",
+        )
+    if row.expires_at <= now:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired or revoked")
 
     user = session.get(User, row.user_id)
@@ -345,6 +391,16 @@ def refresh_session(
         )
     )
 
+    record_security_audit(
+        session,
+        action="auth.refresh",
+        organization_id=organization.id,
+        actor_user_id=user.id,
+        resource_type="session",
+        resource_id=str(row.id),
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
     session.commit()
     session.refresh(user)
     session.refresh(organization)
@@ -369,10 +425,13 @@ def refresh_session(
 
 def logout(session: Session, user: User, refresh_token: str | None, revoke_all: bool) -> None:
     if revoke_all:
-        session.execute(
-            update(RefreshToken)
-            .where(RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None))
-            .values(revoked_at=datetime.now(tz=UTC))
+        _revoke_all_refresh_tokens(session, user.id, now=datetime.now(tz=UTC))
+        record_security_audit(
+            session,
+            action="auth.logout_all",
+            actor_user_id=user.id,
+            resource_type="session",
+            resource_id=str(user.id),
         )
         session.commit()
         return
@@ -391,6 +450,13 @@ def logout(session: Session, user: User, refresh_token: str | None, revoke_all: 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown refresh token")
 
     row.revoked_at = datetime.now(tz=UTC)
+    record_security_audit(
+        session,
+        action="auth.logout",
+        actor_user_id=user.id,
+        resource_type="session",
+        resource_id=str(row.id),
+    )
     session.commit()
 
 

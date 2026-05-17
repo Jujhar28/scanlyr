@@ -54,6 +54,11 @@ function extractErrorMessage(parsed: unknown, fallback: string): string {
     if (typeof body.detail === "string" && body.detail.trim()) {
       return body.detail;
     }
+    const details = body.details as { errors?: Array<{ msg?: string }> } | undefined;
+    const first = details?.errors?.[0]?.msg;
+    if (typeof first === "string" && first.trim()) {
+      return first;
+    }
   }
   return fallback;
 }

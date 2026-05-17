@@ -20,10 +20,25 @@ export function SettingsPageClient() {
   return (
     <div className="mx-auto max-w-[1600px] space-y-8">
       <PageHeader
-        title="Organization"
-        description="Tenant profile and access context. Policy and SSO controls connect here as the platform matures."
+        title="Profile & organization"
+        description="Your account, tenant context, and session details for audit attribution."
         actions={role ? <Badge variant="accent">{role}</Badge> : null}
       />
+
+      <div className="flex flex-col gap-4 rounded-xl border border-[var(--st-border)] bg-gradient-to-br from-[var(--st-surface)] to-[var(--st-muted)]/30 p-6 sm:flex-row sm:items-center">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[var(--st-accent-subtle)] font-display text-2xl font-bold text-[var(--st-accent)] ring-1 ring-[var(--st-accent)]/25">
+          {(user?.full_name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <p className="font-display text-xl font-semibold text-[var(--st-fg)]">
+            {user?.full_name ?? user?.email ?? "User"}
+          </p>
+          <p className="text-sm text-[var(--st-fg-muted)]">{user?.email}</p>
+          <p className="mt-1 text-xs text-[var(--st-fg-muted)]">
+            {organization?.name} · {role ?? "member"}
+          </p>
+        </div>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="border-[var(--st-border)] bg-[var(--st-surface)] shadow-sm">

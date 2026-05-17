@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError, ResponseValidationError, WebSocketRequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
@@ -18,7 +20,10 @@ from app.integrations.microsoft_graph.errors import (
     MicrosoftGraphOAuthError,
 )
 from app.services.compliance_report_service import ComplianceReportError
+from app.core.config import settings
 from app.services.shadow_ai_detection_service import ShadowAIDetectionError
+
+logger = logging.getLogger(__name__)
 
 
 class ErrorResponse(BaseModel):
@@ -65,6 +70,23 @@ def _code_for_http_status(status_code: int) -> str:
     return "http_error"
 
 
+def _validation_error_message(errors: list[Any]) -> str:
+    """Surface the first human-readable validation message (e.g. password rules)."""
+    for item in errors:
+        if not isinstance(item, dict):
+            continue
+        msg = item.get("msg")
+        if isinstance(msg, str) and msg.strip():
+            loc = item.get("loc") or ()
+            if isinstance(loc, (list, tuple)) and loc:
+                field = str(loc[-1]).replace("_", " ")
+                if field == "password" and "password" in msg.lower():
+                    return msg
+                return f"{field}: {msg}"
+            return msg
+    return "Request validation failed"
+
+
 def _http_exception_message(detail: Any) -> tuple[str, dict[str, Any] | None]:
     if isinstance(detail, str):
         return detail, None
@@ -106,12 +128,14 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        errors = jsonable_encoder(exc.errors())
+        message = _validation_error_message(errors)
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content=error_payload(
                 code="validation_error",
-                message="Request validation failed",
-                details={"errors": exc.errors()},
+                message=message,
+                details={"errors": errors},
                 request=request,
             ),
         )
@@ -188,4 +212,24 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content=error_payload(code="shadow_ai_detection_error", message=str(exc), request=request),
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception(
+            "unhandled_exception",
+            extra={
+                "path": request.url.path,
+                "method": request.method,
+                "request_id": _request_id_from_request(request),
+            },
+        )
+        message = "An internal error occurred"
+        details: dict[str, Any] | None = None
+        if settings.effective_expose_error_details:
+            message = str(exc) or message
+            details = {"type": type(exc).__name__}
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=error_payload(code="internal_error", message=message, details=details, request=request),
         )

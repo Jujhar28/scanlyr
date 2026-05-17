@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Download, Loader2 } from "lucide-react";
 
 import { ButtonLink } from "@/components/ui/button";
 import {
@@ -13,31 +14,22 @@ import {
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiFetch, apiFetchBlob, ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
+import { downloadReportPdf, getReport, type ReportDetail } from "@/lib/api/reports";
+import { useToast } from "@/providers/toast-provider";
 import { useAuth } from "@/providers/auth-provider";
 
-type ReportDetail = {
-  id: string;
-  title: string;
-  report_type: string;
-  status: string;
-  period_start: string | null;
-  period_end: string | null;
-  created_at: string;
-  updated_at: string;
-  created_by_user_id: string | null;
-  error_message: string | null;
-  downloadable: boolean;
-  meta: {
-    sections?: Record<string, unknown>;
-    version?: number;
-    algorithm?: string;
-  } | null;
-};
+function statusVariant(status: string): "success" | "danger" | "outline" | "warning" {
+  if (status === "ready") return "success";
+  if (status === "failed") return "danger";
+  if (status === "pending" || status === "generating") return "warning";
+  return "outline";
+}
 
 export default function ReportDetailPage() {
   const params = useParams();
   const reportId = typeof params.reportId === "string" ? params.reportId : "";
+  const { toast } = useToast();
   const { hydrated } = useAuth();
   const [row, setRow] = useState<ReportDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +41,7 @@ export default function ReportDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch<ReportDetail>(`reports/${reportId}`);
+      const res = await getReport(reportId);
       setRow(res);
     } catch (e) {
       setRow(null);
@@ -65,19 +57,27 @@ export default function ReportDetailPage() {
   }, [hydrated, reportId, load]);
 
   async function downloadPdf() {
-    if (!reportId) return;
+    if (!reportId || !row) return;
     setDownloading(true);
     setError(null);
     try {
-      const blob = await apiFetchBlob(`reports/${reportId}/download`);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `scanlyr-ai-governance-${reportId}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadReportPdf(
+        reportId,
+        `${row.title.replace(/\s+/g, "-").toLowerCase()}.pdf`,
+      );
+      toast({
+        variant: "success",
+        title: "Download started",
+        description: row.title,
+      });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Download failed.");
+      const message = e instanceof ApiError ? e.message : "Download failed.";
+      setError(message);
+      toast({
+        variant: "error",
+        title: "Download failed",
+        description: message,
+      });
     } finally {
       setDownloading(false);
     }
@@ -90,12 +90,10 @@ export default function ReportDetailPage() {
   const sections = row?.meta?.sections;
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <ButtonLink href="/dashboard/reports" variant="ghost" className="h-9 px-3 text-sm">
-          ← Reports
-        </ButtonLink>
-      </div>
+    <div className="mx-auto max-w-[1600px] space-y-6 pb-8">
+      <ButtonLink href="/dashboard/reports" variant="ghost" className="h-9 px-3 text-sm">
+        ← Reports
+      </ButtonLink>
 
       {loading ? (
         <div className="space-y-4">
@@ -105,10 +103,10 @@ export default function ReportDetailPage() {
         </div>
       ) : null}
 
-      {error ? (
-        <p className="text-sm text-red-200" role="alert">
+      {error && !row ? (
+        <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
           {error}
-        </p>
+        </div>
       ) : null}
 
       {row ? (
@@ -122,7 +120,7 @@ export default function ReportDetailPage() {
             }
             actions={
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={row.status === "ready" ? "success" : row.status === "failed" ? "danger" : "outline"}>
+                <Badge variant={statusVariant(row.status)} className="normal-case">
                   {row.status}
                 </Badge>
                 {row.downloadable ? (
@@ -130,8 +128,13 @@ export default function ReportDetailPage() {
                     type="button"
                     onClick={() => void downloadPdf()}
                     disabled={downloading}
-                    className="inline-flex h-9 items-center justify-center rounded-lg bg-[var(--st-accent)] px-4 text-sm font-medium text-[#041018] hover:opacity-90 disabled:opacity-50"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--st-accent)] px-4 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
                   >
+                    {downloading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    ) : (
+                      <Download className="h-4 w-4" aria-hidden />
+                    )}
                     {downloading ? "Downloading…" : "Download PDF"}
                   </button>
                 ) : null}
@@ -139,33 +142,67 @@ export default function ReportDetailPage() {
             }
           />
 
-          <Card className="border-[var(--st-border)] bg-[var(--st-surface)] shadow-sm">
-            <CardHeader className="border-b border-[var(--st-border)] bg-[var(--st-muted)]/30">
-              <CardTitle>Delivery</CardTitle>
-              <CardDescription>PDF availability and pipeline errors.</CardDescription>
-            </CardHeader>
-            <div className="p-6">
-              {!row.downloadable ? (
-                <p className="text-sm text-[var(--st-fg-muted)]">
-                  PDF is not available (report may still be rendering or failed).
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card className="border-[var(--st-border)] bg-[var(--st-surface)] shadow-sm">
+              <CardHeader className="border-b border-[var(--st-border)] bg-[var(--st-muted)]/30">
+                <CardTitle className="text-base">Delivery</CardTitle>
+                <CardDescription>PDF file and generation status.</CardDescription>
+              </CardHeader>
+              <div className="space-y-3 p-6 text-sm">
+                <p className="text-[var(--st-fg-muted)]">
+                  {row.downloadable
+                    ? "PDF is stored and ready to download."
+                    : "PDF is not available — the report may still be processing or failed."}
                 </p>
-              ) : (
-                <p className="text-sm text-[var(--st-fg-muted)]">Use Download PDF to fetch the signed file.</p>
-              )}
-              {row.error_message ? <p className="mt-3 text-sm text-red-200">{row.error_message}</p> : null}
-            </div>
-          </Card>
+                {row.error_message ? (
+                  <p className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-red-100">
+                    {row.error_message}
+                  </p>
+                ) : null}
+                <dl className="grid gap-2 text-xs text-[var(--st-fg-muted)]">
+                  <div className="flex justify-between gap-4">
+                    <dt>Report ID</dt>
+                    <dd className="font-mono text-[var(--st-fg)]">{row.id}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt>Type</dt>
+                    <dd className="text-[var(--st-fg)]">{row.report_type}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt>Updated</dt>
+                    <dd className="tabular-nums text-[var(--st-fg)]">
+                      {new Date(row.updated_at).toLocaleString()}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </Card>
+
+            <Card className="border-[var(--st-border)] bg-[var(--st-surface)] shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base">What&apos;s inside</CardTitle>
+                <CardDescription>
+                  Usage, risk, PII, users, ADM activity, and remediation guidance.
+                </CardDescription>
+              </CardHeader>
+              <div className="p-6 text-sm text-[var(--st-fg-muted)]">
+                {sections ? (
+                  <p>Section snapshot available below — matches the generated PDF structure.</p>
+                ) : (
+                  <p>Metadata sections will appear when generation completes successfully.</p>
+                )}
+              </div>
+            </Card>
+          </div>
 
           {sections ? (
             <Card className="border-[var(--st-border)] bg-[var(--st-surface)] shadow-sm">
               <CardHeader>
-                <CardTitle>Sections snapshot</CardTitle>
-                <CardDescription>
-                  Same structure as the PDF: usage, risk, PII, users, ADM, and recommendations.
-                </CardDescription>
+                <CardTitle className="text-base">Sections snapshot</CardTitle>
+                <CardDescription>Structured content included in the PDF export.</CardDescription>
               </CardHeader>
               <div className="px-6 pb-6">
-                <pre className="max-h-[32rem] overflow-auto rounded-lg bg-black/30 p-3 text-xs text-[var(--st-fg-muted)]">
+                <pre className="max-h-[28rem] overflow-auto rounded-lg bg-black/30 p-4 text-xs text-[var(--st-fg-muted)]">
                   {JSON.stringify(sections, null, 2)}
                 </pre>
               </div>

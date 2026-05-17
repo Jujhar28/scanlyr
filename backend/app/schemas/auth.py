@@ -30,7 +30,7 @@ class LoginRequest(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str = Field(min_length=10)
+    refresh_token: str = Field(min_length=10, max_length=512)
 
 
 class LogoutRequest(BaseModel):

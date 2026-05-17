@@ -37,9 +37,9 @@ export function LoginForm() {
   }
 
   return (
-    <Card>
+    <Card className="border-[var(--st-border)] bg-[var(--st-surface)]/90 shadow-2xl shadow-black/40 ring-1 ring-white/5 backdrop-blur-xl">
       <CardHeader>
-        <CardTitle>Sign in</CardTitle>
+        <CardTitle className="font-display">Sign in</CardTitle>
         <CardDescription>
           Use the email and password for your Scanlyr organization account.
         </CardDescription>

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -14,6 +15,7 @@ from app.core.config import settings
 
 ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_BYTES = 48
+ALLOWED_TOKEN_ROLES = frozenset({"admin", "analyst", "viewer"})
 
 
 def hash_password(plain_password: str) -> str:
@@ -61,11 +63,45 @@ def create_access_token(
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
 
 
-def decode_access_token(token: str) -> dict[str, Any]:
-    payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+def _validate_access_claims(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("typ") != ACCESS_TOKEN_TYPE:
         raise JWTError("Invalid token type")
+
+    sub = payload.get("sub")
+    if not sub or not isinstance(sub, str):
+        raise JWTError("Missing subject")
+    try:
+        uuid.UUID(sub)
+    except ValueError as exc:
+        raise JWTError("Invalid subject") from exc
+
+    org_id = payload.get("org_id")
+    if not org_id:
+        raise JWTError("Missing organization")
+    try:
+        uuid.UUID(str(org_id))
+    except ValueError as exc:
+        raise JWTError("Invalid organization") from exc
+
+    role = payload.get("role")
+    if not role or not isinstance(role, str):
+        raise JWTError("Missing role")
+    if role not in ALLOWED_TOKEN_ROLES:
+        raise JWTError("Invalid role")
+
     return payload
+
+
+def decode_access_token(token: str) -> dict[str, Any]:
+    if not token or not token.strip():
+        raise JWTError("Empty token")
+    payload = jwt.decode(
+        token.strip(),
+        settings.secret_key,
+        algorithms=[settings.jwt_algorithm],
+        options={"require": ["exp", "sub", "iat", "typ"]},
+    )
+    return _validate_access_claims(payload)
 
 
 def safe_decode_access_token(token: str) -> dict[str, Any] | None:
