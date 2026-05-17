@@ -33,16 +33,18 @@ def get_ai_provider(
     timeout = (
         timeout_seconds if timeout_seconds is not None else cfg.ai_provider_timeout_seconds
     )
-    retries = max_retries if max_retries is not None else cfg.gemini_max_retries
+    gemini_retries = max_retries if max_retries is not None else cfg.gemini_max_retries
+    groq_retries = max_retries if max_retries is not None else cfg.groq_max_retries
 
     if provider_id == "auto":
         return FallbackAIProvider(
             settings=cfg,
             timeout_seconds=timeout,
-            max_retries=retries,
+            gemini_max_retries=gemini_retries,
+            groq_max_retries=groq_retries,
         )
     if provider_id == "gemini":
-        return GeminiProvider(settings=cfg, timeout_seconds=timeout, max_retries=retries)
+        return GeminiProvider(settings=cfg, timeout_seconds=timeout, max_retries=gemini_retries)
     if provider_id == "groq":
         groq_retries = max_retries if max_retries is not None else cfg.groq_max_retries
         return GroqProvider(

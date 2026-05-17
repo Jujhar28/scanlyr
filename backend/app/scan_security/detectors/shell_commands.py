@@ -22,7 +22,7 @@ class SuspiciousShellCommandDetector(PatternListDetector):
                 "Block curl|bash patterns in agent tools; verify script provenance.",
             ),
             PatternSpec(
-                re.compile(r"(?i)\bwget\b[^\n]*\|\s*(ba)?sh\b"),
+                re.compile(r"(?i)\bwget\b[^\n|]*\|\s*(ba)?sh\b"),
                 "critical",
                 "Wget pipe to shell",
                 "wget piped to shell execution: «{matched}».",

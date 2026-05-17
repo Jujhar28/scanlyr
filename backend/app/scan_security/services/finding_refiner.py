@@ -223,7 +223,12 @@ def _dedupe_overlapping(findings: list[SecurityFinding]) -> list[SecurityFinding
         start = f.evidence.get("start")
         end = f.evidence.get("end")
         if not isinstance(start, int) or not isinstance(end, int):
-            key = (-1, hash(f.detector_id) % 10_000)
+            snippet = str(f.evidence.get("snippet") or f.title)
+            line_no = f.evidence.get("line_number")
+            key = (
+                -1,
+                hash((f.detector_id, snippet, line_no, f.type, f.description)),
+            )
         else:
             key = (start, end)
         existing = by_span.get(key)

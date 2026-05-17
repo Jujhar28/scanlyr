@@ -4,7 +4,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -34,9 +36,25 @@ const TOAST_DURATION_MS = 6000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
+  const timeoutsRef = useRef<Map<string, number>>(new Map());
 
   const dismiss = useCallback((id: string) => {
+    const timeoutId = timeoutsRef.current.get(id);
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+      timeoutsRef.current.delete(id);
+    }
     setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  useEffect(() => {
+    const timeouts = timeoutsRef.current;
+    return () => {
+      for (const timeoutId of timeouts.values()) {
+        window.clearTimeout(timeoutId);
+      }
+      timeouts.clear();
+    };
   }, []);
 
   const toast = useCallback(
@@ -47,7 +65,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           : String(Date.now());
       const record: ToastRecord = { variant: "success", ...input, id };
       setToasts((prev) => [...prev, record]);
-      window.setTimeout(() => dismiss(id), TOAST_DURATION_MS);
+      const timeoutId = window.setTimeout(() => dismiss(id), TOAST_DURATION_MS);
+      timeoutsRef.current.set(id, timeoutId);
     },
     [dismiss],
   );

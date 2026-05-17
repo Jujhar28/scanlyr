@@ -45,7 +45,14 @@ def run_security_scan(
     for detector in active:
         if not detector.applies_to(ctx):
             continue
-        hits = detector.detect_with_context(ctx)
+        try:
+            hits = detector.detect_with_context(ctx)
+        except Exception:
+            logger.exception(
+                "security_detector_failed",
+                extra={"detector_id": detector.detector_id},
+            )
+            continue
         if hits:
             triggered.append(detector.detector_id)
         raw_findings.extend(hits)

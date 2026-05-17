@@ -105,7 +105,7 @@ export function M365ConnectionWidget({
               href="/dashboard/integrations"
               className="text-center text-sm font-medium text-[var(--st-accent)] hover:underline sm:text-left"
             >
-              Run full scan →
+              Manage integrations →
             </Link>
           )}
         </div>

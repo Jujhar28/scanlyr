@@ -33,10 +33,12 @@ class HardcodedCredentialsDetector(PatternListDetector):
                 "Rotate credentials and purge from repositories and chat logs.",
             ),
             PatternSpec(
-                re.compile(r"(?i)mongodb(\+srv)?://[^\s\"']+"),
+                re.compile(
+                    r"(?i)mongodb(\+srv)?://[^@\s\"']+:[^@\s\"']+@[^\s\"']+",
+                ),
                 "high",
-                "Database connection string",
-                "Database URI with embedded credentials may be present: «{matched}».",
+                "Database connection string with credentials",
+                "MongoDB URI with embedded username and password: «{matched}».",
                 "Rotate DB credentials and restrict connection string distribution.",
             ),
         )

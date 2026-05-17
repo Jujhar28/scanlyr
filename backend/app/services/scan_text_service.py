@@ -195,11 +195,11 @@ def run_rule_based_text_scan(
     payload = _build_result_payload(response)
 
     evidence: dict[str, object] = {
+        **payload,
         "input_text": input_text,
         "content_type": content_type,
         "request_id": request_id,
         "schema_version": API_SCHEMA_VERSION,
-        **payload,
     }
 
     detection_row = AIDetectionEvent(
@@ -227,6 +227,7 @@ def run_rule_based_text_scan(
 
     history_row = create_security_text_scan(
         db,
+        scan_id=scan_uuid,
         organization_id=organization_id,
         user_id=user_id,
         detection_event_id=detection_row.id,
@@ -265,7 +266,7 @@ def run_rule_based_text_scan(
 
     final = _to_response(
         result,
-        scan_id=history_row.id,
+        scan_id=scan_uuid,
         scanned_at=occurred_at,
         content_type=content_type,
         request_id=request_id,

@@ -72,5 +72,5 @@ export async function downloadReportPdf(reportId: string, filename?: string): Pr
   a.href = url;
   a.download = filename ?? `scanlyr-report-${reportId}.pdf`;
   a.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

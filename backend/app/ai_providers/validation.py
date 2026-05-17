@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import ValidationError
 
-from app.ai_providers._http import parse_analysis_json
+from app.ai_providers._http import parse_analysis_json, parse_json_object
 from app.ai_providers.errors import AIProviderResponseError
 from app.ai_providers.schemas import (
     HybridReverifyResult,
@@ -107,14 +107,11 @@ def validate_text_analysis_result(result: TextAnalysisResult) -> TextAnalysisRes
 def parse_and_validate_hybrid_reverify_json(raw: str) -> HybridReverifyResult:
     """Parse model JSON for hybrid re-verify (rules findings adjudication)."""
     try:
-        parsed = parse_analysis_json(raw)
+        parsed = parse_json_object(raw)
     except AIProviderResponseError:
         raise
     except Exception as exc:
         raise AIProviderResponseError(f"Failed to parse hybrid reverify JSON: {exc}") from exc
-
-    if not isinstance(parsed, dict):
-        raise AIProviderResponseError("hybrid reverify payload must be a JSON object.")
 
     try:
         score = int(parsed.get("risk_score", -1))

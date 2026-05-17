@@ -118,7 +118,15 @@ export function MicrosoftFullScanCard({
               type="button"
               className="h-11 px-6 text-base font-semibold"
               disabled={isRunning}
-              onClick={() => void onRun()}
+              onClick={() => {
+                void (async () => {
+                  try {
+                    await onRun();
+                  } catch {
+                    /* onRun surfaces errors via hook state */
+                  }
+                })();
+              }}
             >
               {isRunning ? (
                 <>

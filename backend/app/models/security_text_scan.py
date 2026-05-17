@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+import sqlalchemy as sa
 from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -40,15 +41,27 @@ class SecurityTextScan(Base, TenantMixin, TimestampMixin):
         server_default=func.now(),
         nullable=False,
     )
-    content_type: Mapped[str] = mapped_column(String(16), nullable=False, default="auto")
+    content_type: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        server_default=sa.text("'auto'"),
+    )
     risk_score: Mapped[int] = mapped_column(Integer, nullable=False)
     risk_level: Mapped[str] = mapped_column(String(16), nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
-    finding_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    finding_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        server_default=sa.text("0"),
+    )
     input_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     input_preview: Mapped[str] = mapped_column(Text, nullable=False)
     result_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    engine_version: Mapped[str] = mapped_column(String(64), nullable=False, default="scan_security_v3_llm")
+    engine_version: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        server_default=sa.text("'scan_security_v3_llm'"),
+    )
 
     organization = relationship("Organization", back_populates="security_text_scans")
     user = relationship("User", back_populates="security_text_scans", foreign_keys=[user_id])

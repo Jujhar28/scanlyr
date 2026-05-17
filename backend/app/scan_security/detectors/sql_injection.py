@@ -36,7 +36,7 @@ class SqlInjectionDetector(PatternListDetector):
                 "Restrict DDL permissions; audit queries and enable WAF rules.",
             ),
             PatternSpec(
-                re.compile(r"(?i)(--\s*$|;\s*--|'\s*;\s*drop)"),
+                re.compile(r"(?i)(--\s*$|;\s*--|'\s*;\s*drop)", re.MULTILINE),
                 "medium",
                 "SQL comment terminator",
                 "SQL comment or statement chaining pattern: «{matched}».",

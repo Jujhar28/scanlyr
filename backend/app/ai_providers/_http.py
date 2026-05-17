@@ -13,8 +13,8 @@ from app.ai_providers.schemas import TextAnalysisResult
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 
 
-def parse_analysis_json(raw: str) -> TextAnalysisResult:
-    """Extract and validate model JSON from a raw string (may include markdown fences)."""
+def parse_json_object(raw: str) -> dict[str, Any]:
+    """Extract a JSON object from a raw model response (may include markdown fences)."""
     text = raw.strip()
     if not text:
         raise AIProviderResponseError("Empty model response.")
@@ -30,6 +30,16 @@ def parse_analysis_json(raw: str) -> TextAnalysisResult:
 
     if not isinstance(payload, dict):
         raise AIProviderResponseError("Model JSON must be an object.")
+    return payload
+
+
+def parse_analysis_json(raw: str) -> TextAnalysisResult:
+    """Extract and validate model JSON from a raw string (may include markdown fences)."""
+    text = raw.strip()
+    if not text:
+        raise AIProviderResponseError("Empty model response.")
+
+    payload = parse_json_object(text)
 
     allowed = frozenset({"risk_score", "risk_level", "explanation", "category"})
     extra = set(payload.keys()) - allowed

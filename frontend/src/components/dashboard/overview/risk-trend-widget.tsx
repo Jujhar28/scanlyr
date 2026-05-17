@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import {
   Bar,
   CartesianGrid,
@@ -19,6 +19,26 @@ import { OverviewEmptyState, OverviewWidget } from "./overview-widget";
 
 const GRID = "rgba(148, 163, 184, 0.08)";
 const AXIS = "#64748b";
+
+function tooltipThemeStyle(): CSSProperties {
+  if (typeof window === "undefined") {
+    return {
+      backgroundColor: "var(--st-surface, #ffffff)",
+      border: "1px solid var(--st-border, #e2e8f0)",
+      borderRadius: 8,
+      fontSize: 12,
+      color: "var(--st-fg, #0f172a)",
+    };
+  }
+  const root = getComputedStyle(document.documentElement);
+  return {
+    backgroundColor: root.getPropertyValue("--st-surface").trim() || "#ffffff",
+    border: `1px solid ${root.getPropertyValue("--st-border").trim() || "#e2e8f0"}`,
+    borderRadius: 8,
+    fontSize: 12,
+    color: root.getPropertyValue("--st-fg").trim() || "#0f172a",
+  };
+}
 
 function formatTrendLabel(iso: string): string {
   const d = new Date(iso);
@@ -104,15 +124,7 @@ export function RiskTrendWidget({
                     axisLine={{ stroke: GRID }}
                     domain={[0, 100]}
                   />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#0f172a",
-                      border: "1px solid rgba(148, 163, 184, 0.2)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      color: "#e2e8f0",
-                    }}
-                  />
+                  <Tooltip contentStyle={tooltipThemeStyle()} />
                   <Bar
                     yAxisId="left"
                     dataKey="scans"

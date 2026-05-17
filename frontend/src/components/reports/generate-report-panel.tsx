@@ -133,7 +133,6 @@ export function GenerateReportPanel({
         </div>
       ) : null}
 
-      {detectionsUnknown && !detectionsLoading ? null : null}
     </section>
   );
 }

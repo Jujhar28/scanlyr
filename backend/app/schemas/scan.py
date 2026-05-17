@@ -192,7 +192,7 @@ class ScanResponse(BaseModel):
                     "request_id": "a10b2c57-ff2f-4dbd-8721-e1c28cdee4e1",
                     "content_type": "auto",
                     "engine_version": "scan_security_v4",
-                    "schema_version": "2.0",
+                    "schema_version": API_SCHEMA_VERSION,
                 },
                 "analysis": {
                     "risk_categories": {"credential_exposure": 82},

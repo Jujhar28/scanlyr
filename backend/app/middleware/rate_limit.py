@@ -16,24 +16,47 @@ from app.core.errors import error_payload
 from app.services.request_context import client_ip_from_request
 
 _WINDOW_SECONDS = 60.0
+_CLEANUP_INTERVAL = 256
 
 
 class _RateLimitStore:
     def __init__(self) -> None:
         self._lock = Lock()
         self._hits: dict[str, list[float]] = defaultdict(list)
+        self._op_count = 0
 
     def allow(self, key: str, *, limit: int) -> tuple[bool, int]:
         now = time.monotonic()
         cutoff = now - _WINDOW_SECONDS
         with self._lock:
+            self._op_count += 1
+            if self._op_count % _CLEANUP_INTERVAL == 0:
+                self._cleanup(cutoff)
+
             bucket = self._hits[key]
-            self._hits[key] = [t for t in bucket if t > cutoff]
-            if len(self._hits[key]) >= limit:
-                retry_after = int(max(1, _WINDOW_SECONDS - (now - self._hits[key][0])))
+            pruned = [t for t in bucket if t > cutoff]
+            if pruned:
+                self._hits[key] = pruned
+            elif key in self._hits:
+                del self._hits[key]
+
+            bucket = self._hits.get(key, [])
+            if len(bucket) >= limit:
+                retry_after = int(max(1, _WINDOW_SECONDS - (now - bucket[0])))
                 return False, retry_after
-            self._hits[key].append(now)
+            self._hits[key] = [*bucket, now]
             return True, 0
+
+    def _cleanup(self, cutoff: float) -> None:
+        stale_keys: list[str] = []
+        for key, bucket in self._hits.items():
+            pruned = [t for t in bucket if t > cutoff]
+            if pruned:
+                self._hits[key] = pruned
+            else:
+                stale_keys.append(key)
+        for key in stale_keys:
+            del self._hits[key]
 
 
 _store = _RateLimitStore()

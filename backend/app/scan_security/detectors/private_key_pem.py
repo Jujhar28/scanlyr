@@ -9,7 +9,7 @@ from app.scan_security.detectors.base import PatternListDetector, PatternSpec
 
 class PrivateKeyPemDetector(PatternListDetector):
     detector_id = "private_key_pem"
-    default_finding_type = "api_key_leak"
+    default_finding_type = "private_key_exposure"
     default_category = "credential_exposure"
     default_risk_category = "credential_exposure"
 

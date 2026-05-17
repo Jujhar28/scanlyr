@@ -153,12 +153,19 @@ class GeminiProvider(AIProvider):
             response.raise_for_status()
             return response
 
-        response = execute_with_retries(
-            _post,
-            max_attempts=self._max_retries,
-            initial_backoff_seconds=self._retry_backoff,
-            provider_label="Gemini API",
-        )
+        try:
+            response = execute_with_retries(
+                _post,
+                max_attempts=self._max_retries,
+                initial_backoff_seconds=self._retry_backoff,
+                provider_label="Gemini API",
+            )
+        except AIProviderResponseError:
+            raise
+        except Exception as exc:
+            logger.exception("Unexpected Gemini provider failure")
+            raise AIProviderResponseError(f"Gemini hybrid re-verify failed: {exc}") from exc
+
         payload = response.json()
         _raise_if_blocked(payload)
         return parse_and_validate_hybrid_reverify_json(_extract_gemini_text(payload))

@@ -31,19 +31,31 @@ class FallbackAIProvider(AIProvider):
         gemini: GeminiProvider | None = None,
         groq: GroqProvider | None = None,
         timeout_seconds: float | None = None,
+        gemini_max_retries: int | None = None,
+        groq_max_retries: int | None = None,
         max_retries: int | None = None,
     ) -> None:
         cfg = settings or get_settings()
         self._settings = cfg
+        gemini_retries = (
+            gemini_max_retries
+            if gemini_max_retries is not None
+            else max_retries if max_retries is not None else cfg.gemini_max_retries
+        )
+        groq_retries = (
+            groq_max_retries
+            if groq_max_retries is not None
+            else max_retries if max_retries is not None else cfg.groq_max_retries
+        )
         self._gemini = gemini if gemini is not None else GeminiProvider(
             settings=cfg,
             timeout_seconds=timeout_seconds,
-            max_retries=max_retries,
+            max_retries=gemini_retries,
         )
         self._groq = groq if groq is not None else GroqProvider(
             settings=cfg,
             timeout_seconds=timeout_seconds,
-            max_retries=max_retries,
+            max_retries=groq_retries,
         )
         self._last_outcome: ProviderAnalysisOutcome | None = None
 
@@ -184,12 +196,30 @@ class FallbackAIProvider(AIProvider):
             raise AIProviderConfigError(f"Hybrid re-verify unavailable. ({detail})")
 
         attempted.append("groq")
-        result = self._groq.analyze_hybrid_reverify(input_text, findings)
-        return HybridReverifyOutcome(
-            result=result,
-            provider_id="groq",
-            fallback_used="gemini" in attempted,
-            attempted_providers=list(attempted),
+        try:
+            result = self._groq.analyze_hybrid_reverify(input_text, findings)
+            return HybridReverifyOutcome(
+                result=result,
+                provider_id="groq",
+                fallback_used="gemini" in attempted,
+                attempted_providers=list(attempted),
+            )
+        except AIProviderError as exc:
+            errors.append(f"groq: {exc}")
+            logger.error(
+                "ai_reverify_fallback_failed",
+                extra={"provider": "groq", "error": str(exc), "attempted": attempted},
+            )
+        except Exception as exc:
+            errors.append(f"groq: {exc}")
+            logger.error(
+                "ai_reverify_fallback_failed",
+                extra={"provider": "groq", "error": str(exc), "attempted": attempted},
+                exc_info=True,
+            )
+
+        raise AIProviderResponseError(
+            "Hybrid re-verify failed for all configured providers. " + "; ".join(errors),
         )
 
     def _gemini_configured(self) -> bool:

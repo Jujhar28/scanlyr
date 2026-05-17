@@ -29,10 +29,21 @@ export function ReportsList({
   const { toast } = useToast();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
+  function safePdfFilename(title: string): string {
+    const normalized = title.normalize("NFC").trim().slice(0, 120);
+    const sanitized = normalized
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const base = sanitized || "scanlyr-report";
+    return `${base}.pdf`;
+  }
+
   async function handleDownload(row: ReportSummary) {
     setDownloadingId(row.id);
     try {
-      await downloadReportPdf(row.id, `${row.title.replace(/\s+/g, "-").toLowerCase()}.pdf`);
+      await downloadReportPdf(row.id, safePdfFilename(row.title));
       toast({
         variant: "success",
         title: "Download started",

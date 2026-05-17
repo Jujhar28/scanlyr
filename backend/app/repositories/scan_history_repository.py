@@ -44,6 +44,7 @@ def _apply_filters(stmt: Any, organization_id: uuid.UUID, filters: ScanHistoryFi
 def create_security_text_scan(
     session: Session,
     *,
+    scan_id: uuid.UUID | None = None,
     organization_id: uuid.UUID,
     user_id: uuid.UUID | None,
     detection_event_id: uuid.UUID | None,
@@ -59,6 +60,7 @@ def create_security_text_scan(
     engine_version: str,
 ) -> SecurityTextScan:
     row = SecurityTextScan(
+        id=scan_id or uuid.uuid4(),
         organization_id=organization_id,
         user_id=user_id,
         detection_event_id=detection_event_id,
@@ -183,6 +185,15 @@ def top_threat_categories(
     if f.content_type:
         clauses.append("s.content_type = :content_type")
         params["content_type"] = f.content_type
+    if f.user_id:
+        clauses.append("s.user_id = :user_id")
+        params["user_id"] = f.user_id
+    if f.min_risk_score is not None:
+        clauses.append("s.risk_score >= :min_risk_score")
+        params["min_risk_score"] = f.min_risk_score
+    if f.max_risk_score is not None:
+        clauses.append("s.risk_score <= :max_risk_score")
+        params["max_risk_score"] = f.max_risk_score
 
     where_sql = " AND ".join(clauses)
     sql = text(f"""

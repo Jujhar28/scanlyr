@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import cast
 
 from app.scan_security.analysis.context import TextContextProfile
 from app.scan_security.context import ContentKind, RiskCategory
@@ -82,12 +83,15 @@ def _category_score(findings: list[SecurityFinding], category: RiskCategory) -> 
 def build_explainable_score(findings: list[SecurityFinding], overall: int) -> ExplainableRiskScore:
     by_cat: dict[RiskCategory, list[SecurityFinding]] = defaultdict(list)
     for f in findings:
-        by_cat[f.risk_category].append(f)  # type: ignore[arg-type]
+        category = (f.risk_category or "").strip()
+        if not category:
+            continue
+        by_cat[category].append(f)
 
     categories: list[CategoryScore] = []
     for cat in sorted(by_cat.keys()):
         cat_findings = by_cat[cat]
-        score = _category_score(cat_findings, cat)
+        score = _category_score(cat_findings, cast(RiskCategory, cat))
         top = sorted(cat_findings, key=lambda x: _SEVERITY_BASE[x.severity], reverse=True)[:2]
         titles = ", ".join(t.title for t in top)
         explanation = (

@@ -14,9 +14,6 @@ from app.services.request_context import client_ip_from_request
 def test_client_ip_trusts_forwarded_for(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TRUST_PROXY_HEADERS", "true")
     reset_settings_cache()
-    from app.core import config as config_module
-
-    cfg = config_module.get_settings()
     scope = {
         "type": "http",
         "method": "GET",
